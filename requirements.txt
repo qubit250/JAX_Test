@@ -1,0 +1,3 @@
+pennylane>=0.45
+numpy
+matplotlib
