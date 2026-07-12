@@ -1,3 +1,9 @@
 pennylane>=0.45
+pennylane-catalyst>=0.15
+pennylane-qiskit>=0.45
+qiskit-ibm-runtime>=0.45
+jax
+jaxlib
 numpy
 matplotlib
+qiskit-aer
