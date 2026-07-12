@@ -127,12 +127,19 @@ def circuit_specs(n_steps: int = N_STEPS_HW) -> dict:
 # IBM バックエンド取得
 # ============================================================
 
-def get_ibm_backend(token: str, instance: str = "ibm-q/open/main"):
-    """最小ビット数の稼働中 IBM 実機バックエンドを返す。"""
+def get_ibm_backend(token: str, instance: str | None = None):
+    """最小ビット数の稼働中 IBM 実機バックエンドを返す。
+
+    qiskit-ibm-runtime 0.20 以降: channel="ibm_quantum_platform"
+    旧バージョン: channel="ibm_quantum" (廃止)
+    """
     from qiskit_ibm_runtime import QiskitRuntimeService
-    service = QiskitRuntimeService(
-        channel="ibm_quantum", token=token, instance=instance
-    )
+
+    kwargs = {"channel": "ibm_quantum_platform", "token": token}
+    if instance:
+        kwargs["instance"] = instance
+
+    service = QiskitRuntimeService(**kwargs)
     backend = service.least_busy(operational=True, simulator=False, min_num_qubits=1)
     print(f"  -> 使用バックエンド: {backend.name}")
     return backend
