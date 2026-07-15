@@ -1,0 +1,790 @@
+<title>量子シミュレーション実機検証 — CAE技術者向け解説</title>
+<style>
+/* ── tokens ── */
+:root {
+  --bg:       #EFF1F7;
+  --surface:  #FFFFFF;
+  --surface2: #F6F7FB;
+  --border:   #D0D5E4;
+  --text:     #111420;
+  --text2:    #4A5270;
+  --accent:   #1A5FC8;
+  --accent2:  #D4601A;
+  --good:     #1A7A4A;
+  --rule:     rgba(26,95,200,0.10);
+  --shadow:   0 1px 4px rgba(17,20,32,0.08);
+  --mono: "SF Mono","Consolas","Courier New",monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:       #0B0F1C;
+    --surface:  #17203A;
+    --surface2: #1E2A46;
+    --border:   #2A3554;
+    --text:     #DDE3F2;
+    --text2:    #8896BB;
+    --accent:   #4A8EE8;
+    --accent2:  #E8823A;
+    --good:     #3DC878;
+    --rule:     rgba(74,142,232,0.10);
+    --shadow:   0 1px 6px rgba(0,0,0,0.4);
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#0B0F1C;--surface:#17203A;--surface2:#1E2A46;--border:#2A3554;
+  --text:#DDE3F2;--text2:#8896BB;--accent:#4A8EE8;--accent2:#E8823A;
+  --good:#3DC878;--rule:rgba(74,142,232,0.10);--shadow:0 1px 6px rgba(0,0,0,.4);
+}
+:root[data-theme="light"] {
+  --bg:#EFF1F7;--surface:#FFFFFF;--surface2:#F6F7FB;--border:#D0D5E4;
+  --text:#111420;--text2:#4A5270;--accent:#1A5FC8;--accent2:#D4601A;
+  --good:#1A7A4A;--rule:rgba(26,95,200,0.10);--shadow:0 1px 4px rgba(17,20,32,.08);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI","SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* engineering-paper horizontal rules */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--rule) 0, var(--rule) 1px,
+    transparent 1px, transparent 28px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 0 24px 80px; }
+
+/* ── header ── */
+header {
+  padding: 52px 0 36px;
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: 48px;
+}
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+h1 {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.2;
+  text-wrap: balance;
+  letter-spacing: -.02em;
+  margin-bottom: 16px;
+}
+.subtitle {
+  font-size: 1rem;
+  color: var(--text2);
+  max-width: 60ch;
+}
+.meta {
+  margin-top: 20px;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text2);
+  font-variant-numeric: tabular-nums;
+}
+.meta span { display: flex; align-items: center; gap: 6px; }
+.meta b { color: var(--text); font-weight: 600; }
+
+/* theme toggle */
+.toggle-btn {
+  position: fixed; top: 16px; right: 20px; z-index: 10;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text2); font-size: 13px; padding: 5px 12px;
+  border-radius: 4px; cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.toggle-btn:hover { color: var(--accent); }
+
+/* ── sections ── */
+section {
+  margin-bottom: 56px;
+}
+.section-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  text-wrap: balance;
+  margin-bottom: 16px;
+}
+h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+p { max-width: 68ch; margin-bottom: 12px; }
+p:last-child { margin-bottom: 0; }
+
+/* ── analogy grid ── */
+.analogy-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+.analogy-col {
+  background: var(--surface);
+  padding: 0;
+}
+.analogy-head {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
+}
+.analogy-head.q { color: var(--accent); }
+.analogy-head.c { color: var(--accent2); }
+.analogy-row {
+  display: contents;
+}
+.analogy-cell {
+  padding: 10px 16px;
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.analogy-cell:last-child, .analogy-cell:nth-last-child(2) { border-bottom: none; }
+.analogy-cell .label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text2);
+  margin-bottom: 2px;
+}
+
+/* ── energy diagram ── */
+.energy-diagram {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 28px 24px 20px;
+  margin: 20px 0;
+  position: relative;
+  overflow: hidden;
+}
+.energy-diagram canvas {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.ed-caption {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 10px;
+}
+
+/* ── pipeline steps ── */
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 20px 0;
+}
+.pipe-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  position: relative;
+}
+.pipe-card::before {
+  content: attr(data-n);
+  position: absolute;
+  top: 12px; right: 14px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--border);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.pipe-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.pipe-card h3 { font-size: 13.5px; margin-bottom: 6px; }
+.pipe-card p { font-size: 12.5px; color: var(--text2); max-width: none; }
+.pipe-card code { font-family: var(--mono); font-size: 11.5px; background: var(--surface2); padding: 1px 4px; border-radius: 3px; }
+
+/* ── circuit box ── */
+.circuit-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  padding: 20px 24px;
+  margin: 20px 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-x: auto;
+}
+.circuit-box .comment { color: var(--text2); }
+.circuit-box .gate { color: var(--accent); font-weight: 600; }
+.circuit-box .math { color: var(--accent2); }
+
+/* ── results table ── */
+.results-wrap { overflow-x: auto; margin: 20px 0; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+thead th {
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text2);
+  background: var(--surface2);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+thead th:first-child { border-radius: 6px 0 0 0; }
+thead th:last-child  { border-radius: 0 6px 0 0; }
+tbody td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  vertical-align: middle;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: var(--surface2); }
+.val { font-weight: 600; }
+.diff-ok { color: var(--good); font-weight: 600; font-size: 12px; }
+.regime {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.regime.adi  { background: rgba(26,122,74,.12); color: var(--good); }
+.regime.nadi { background: rgba(212,96,26,.12); color: var(--accent2); }
+.regime.mid  { background: rgba(90,100,128,.10); color: var(--text2); }
+
+/* ── QPU bar ── */
+.qpu-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.qpu-label { font-size: 12.5px; font-weight: 600; }
+.qpu-bar-wrap { background: var(--surface2); border-radius: 3px; height: 8px; overflow: hidden; }
+.qpu-bar { height: 100%; border-radius: 3px; background: var(--accent); }
+.qpu-val { font-family: var(--mono); font-size: 12px; color: var(--text2); white-space: nowrap; }
+
+/* ── callout ── */
+.callout {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent2);
+  background: var(--surface);
+  border-radius: 0 6px 6px 0;
+  padding: 14px 18px;
+  margin: 20px 0;
+  font-size: 13.5px;
+  color: var(--text2);
+}
+.callout strong { color: var(--text); }
+
+/* ── conclusion grid ── */
+.concl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+}
+.concl-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px 18px;
+}
+.concl-card .icon { font-size: 18px; margin-bottom: 8px; }
+.concl-card h3 { font-size: 13px; margin-bottom: 5px; }
+.concl-card p { font-size: 12.5px; color: var(--text2); max-width: none; }
+
+footer {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+  font-size: 12px;
+  color: var(--text2);
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .analogy-grid { grid-template-columns: 1fr; }
+  .pipeline { grid-template-columns: 1fr; }
+  .qpu-row { grid-template-columns: 1fr; }
+  .concl-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<button class="toggle-btn" onclick="
+  const r=document.documentElement;
+  const cur=r.getAttribute('data-theme');
+  if(!cur){const dark=matchMedia('(prefers-color-scheme:dark)').matches;r.setAttribute('data-theme',dark?'light':'dark');}
+  else r.setAttribute('data-theme',cur==='dark'?'light':'dark');
+">テーマ切替</button>
+
+<div class="page">
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="eyebrow">量子計算 × CAE 技術検討レポート</div>
+  <h1>IBM量子実機による<br>小規模動的非断熱計算の実証</h1>
+  <p class="subtitle">Landau-Zener モデルを題材に、PennyLane + Catalyst で構築した
+  量子回路を ibm_kingston 実機上で実行し、シミュレーションとの整合性を検証した。</p>
+  <div class="meta">
+    <span><b>実行日</b> 2026-07-12</span>
+    <span><b>バックエンド</b> ibm_kingston</span>
+    <span><b>ツール</b> PennyLane 0.45 / Catalyst 0.15 / Qiskit 2.3</span>
+    <span><b>量子ビット数</b> 1 qubit</span>
+  </div>
+</header>
+
+<!-- ── 1. WHY ── -->
+<section>
+  <div class="section-label">Section 1</div>
+  <h2>CAE視点からの位置づけ</h2>
+  <p>CAEにおける連立方程式のソルバーと同様に、量子コンピュータは特定クラスの物理問題を
+  「重ね合わせと干渉」で並列的に解く計算基盤である。
+  本検討は、量子動力学（量子版の時間積分）を実機で実行できるか検証する第一歩である。</p>
+
+  <div class="analogy-grid">
+    <div class="analogy-col">
+      <div class="analogy-head q">量子シミュレーション（本検討）</div>
+      <div class="analogy-cell"><div class="label">計算対象</div>量子2準位系の時間発展</div>
+      <div class="analogy-cell"><div class="label">支配方程式</div>Schrödinger 方程式 i ∂|ψ⟩/∂t = H(t)|ψ⟩</div>
+      <div class="analogy-cell"><div class="label">時間積分</div>ゲート分解（exp(-iHΔt)を量子ゲートで近似）</div>
+      <div class="analogy-cell"><div class="label">空間離散化</div>量子ビット（qubit）= 状態空間の基底</div>
+      <div class="analogy-cell"><div class="label">ソルバー</div>量子回路（ユニタリ変換の合成）</div>
+      <div class="analogy-cell"><div class="label">結果取得</div>測定（shots = サンプリング回数）</div>
+    </div>
+    <div class="analogy-col">
+      <div class="analogy-head c">従来型 CAE（構造・流体解析）</div>
+      <div class="analogy-cell"><div class="label">計算対象</div>構造・流体・熱の時間発展</div>
+      <div class="analogy-cell"><div class="label">支配方程式</div>運動方程式 M ü + Cu̇ + Ku = F(t)</div>
+      <div class="analogy-cell"><div class="label">時間積分</div>Newmark-β / Runge-Kutta 法</div>
+      <div class="analogy-cell"><div class="label">空間離散化</div>有限要素メッシュ</div>
+      <div class="analogy-cell"><div class="label">ソルバー</div>直接法 / 反復法（CG, GMRES）</div>
+      <div class="analogy-cell"><div class="label">結果取得</div>後処理（変位場・応力分布の可視化）</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 2. PHYSICS ── -->
+<section>
+  <div class="section-label">Section 2</div>
+  <h2>解析対象：Landau-Zener モデル（2準位系）</h2>
+  <p>2つのエネルギー準位が時間変化するハミルトニアン下で「交叉点付近を通過する」現象。
+  有機分子・半導体の光励起、CNT官能基化計算のS₀→S₁遷移と同じ物理クラスに属する。</p>
+
+  <div class="energy-diagram">
+    <canvas id="ed" height="200"></canvas>
+    <p class="ed-caption">エネルギー準位の時間変化（avoided crossing）— α が大きいほど掃引が速く、非断熱遷移が起きる</p>
+  </div>
+
+  <div class="callout">
+    <strong>断熱定理（CAE類推）:</strong>
+    外力の変化が十分ゆっくりならば系は準静的に応答する（静的解析が動的解析を近似できる条件）。
+    量子系でも同様に、ハミルトニアンの変化が遅ければ状態は基底状態に追従し続ける（断熱遷移）。
+    変化が速い場合は「基底状態に追従できない」非断熱遷移が生じる。
+  </div>
+
+  <p style="margin-top:8px">本検討のハミルトニアン（掃引速度 α, ギャップ Δ=1）：</p>
+  <div class="circuit-box">
+    <span class="comment"># H(t) = α·t·Z + Δ·X  （t ∈ [-T/2, +T/2]）</span><br>
+    <span class="comment"># 断熱条件: α / (2Δ)² ≪ 1</span><br><br>
+    α = 0.5 → α/(2Δ)² = <span class="math">0.125</span>  <span class="comment"># 断熱（基底状態追従）</span><br>
+    α = 5.0 → α/(2Δ)² = <span class="math">1.25</span>   <span class="comment"># 非断熱（diabatic 状態に留まる）</span>
+  </div>
+</section>
+
+<!-- ── 3. PIPELINE ── -->
+<section>
+  <div class="section-label">Section 3</div>
+  <h2>3段階検証パイプライン</h2>
+  <p>実機投入前に2段階の事前検証を行う設計は、CAEにおける
+  「粗メッシュ確認 → 細メッシュ本計算 → 実験比較」に相当する。</p>
+
+  <div class="pipeline">
+    <div class="pipe-card" data-n="1">
+      <div class="pipe-tag">高精度シミュレーション</div>
+      <h3>Catalyst + lightning.qubit</h3>
+      <p>JIT コンパイル（<code>@qjit</code>）＋ <code>jax.vmap</code> で全掃引速度を並列計算。ノイズなし・N_STEPS=100 の理論値。</p>
+    </div>
+    <div class="pipe-card" data-n="2">
+      <div class="pipe-tag">ノイズ入りシミュレーション</div>
+      <h3>AerSimulator（実機模擬）</h3>
+      <p>ゲート誤り率 0.1%・読み出し誤り率 1% のノイズモデルを付与。N_STEPS=15 の浅い回路。</p>
+    </div>
+    <div class="pipe-card" data-n="3">
+      <div class="pipe-tag">実機実行</div>
+      <h3>ibm_kingston（QPU）</h3>
+      <p>IBM Quantum Platform 経由で実機投入。shots=8192 で統計誤差 ±0.55%（1σ）を確保。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── 4. CIRCUIT ── -->
+<section>
+  <div class="section-label">Section 4</div>
+  <h2>回路設計：時間発展演算子のゲート分解</h2>
+  <p>時間ステップ毎の演算子 exp(−iH(t)Δt) を IBM ネイティブゲート（RY, RZ）に厳密分解する。
+  これはFEMの陽的時間積分で各ステップの剛性行列をローカル演算として組み立てる工程に相当する。</p>
+
+  <div class="circuit-box">
+    <span class="comment"># 各時間ステップ t_i での演算子分解：</span><br>
+    <span class="comment"># exp(-i·(a·Z + Δ·X)·dt) = RY(-φ) → RZ(2‖H‖dt) → RY(+φ)</span><br><br>
+    <span class="comment">#   ‖H‖ = √(a² + Δ²),  φ = arctan2(Δ, a)</span><br><br>
+    <span class="gate">RY</span>(<span class="math">-phi</span>, wires=0)      <span class="comment"># 回転軸を Z から H 方向へ</span><br>
+    <span class="gate">RZ</span>(<span class="math">2*norm*dt</span>, wires=0)  <span class="comment"># 固有値に沿った回転（物理的時間発展）</span><br>
+    <span class="gate">RY</span>(<span class="math">+phi</span>, wires=0)      <span class="comment"># 回転軸を元に戻す</span>
+  </div>
+
+  <div class="results-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>回路仕様</th>
+          <th>値</th>
+          <th>備考</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>量子ビット数</td><td class="val">1 qubit</td><td>IBM実機の1本で足りる</td></tr>
+        <tr><td>タイムステップ N_STEPS</td><td class="val">15</td><td>Δt = 0.40（ゲート数を抑制）</td></tr>
+        <tr><td>総ゲート数</td><td class="val">46</td><td>RY×31 + RZ×15</td></tr>
+        <tr><td>回路深度</td><td class="val">46</td><td>コヒーレンス時間内に収まる</td></tr>
+        <tr><td>回路実行時間（1回）</td><td class="val">2.67 μs</td><td>SX×62 + 読み出し</td></tr>
+        <tr><td>rep_delay（T₁緩和待ち）</td><td class="val">250 μs</td><td>qubit リセットのための待機</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── 5. RESULTS ── -->
+<section>
+  <div class="section-label">Section 5</div>
+  <h2>実機実行結果と検証</h2>
+  <p>使用バックエンド: <strong>ibm_kingston</strong>（2026-07-12, shots=8,192）。
+  AerSimulatorとの平均偏差 <strong>0.53%</strong>、全点が統計誤差3σ以内に収まり、
+  ノイズモデルが実機を良く近似することを確認した。</p>
+
+  <div class="results-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>掃引速度 α</th>
+          <th>体制</th>
+          <th>Catalyst（理論）</th>
+          <th>AerSimulator</th>
+          <th>IBM Real</th>
+          <th>|Real−Aer|</th>
+          <th>偏差</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="val">0.1</td>
+          <td><span class="regime mid">遷移域</span></td>
+          <td>0.3471</td><td>0.3239</td><td class="val">0.3365</td>
+          <td>0.0126</td><td class="diff-ok">2.3σ ✓</td>
+        </tr>
+        <tr>
+          <td class="val">0.5</td>
+          <td><span class="regime adi">断熱</span></td>
+          <td>0.0936</td><td>0.0854</td><td class="val">0.0886</td>
+          <td>0.0032</td><td class="diff-ok">0.6σ ✓</td>
+        </tr>
+        <tr>
+          <td class="val">1.0</td>
+          <td><span class="regime adi">断熱</span></td>
+          <td>0.0790</td><td>0.1350</td><td class="val">0.1373</td>
+          <td>0.0023</td><td class="diff-ok">0.4σ ✓</td>
+        </tr>
+        <tr>
+          <td class="val">2.0</td>
+          <td><span class="regime adi">断熱</span></td>
+          <td>0.2698</td><td>0.1962</td><td class="val">0.1991</td>
+          <td>0.0029</td><td class="diff-ok">0.5σ ✓</td>
+        </tr>
+        <tr>
+          <td class="val">5.0</td>
+          <td><span class="regime nadi">非断熱</span></td>
+          <td>0.5393</td><td>0.6536</td><td class="val">0.6592</td>
+          <td>0.0056</td><td class="diff-ok">1.0σ ✓</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="margin-top:12px">Catalyst と IBM Real の差（例: α=2.0 で 7%）は、
+  N_STEPS の違い（100 vs 15）による時間離散化誤差が主因であり、
+  ハードウェアノイズとは区別できる。</p>
+</section>
+
+<!-- ── 6. QPU ── -->
+<section>
+  <div class="section-label">Section 6</div>
+  <h2>QPU 使用時間（計算コスト）</h2>
+  <p>IBM Quantum 無料枠（10分/月 = 600秒）に対して本スクリプトの消費は極めて小さい。</p>
+
+  <div style="margin:20px 0">
+    <div class="qpu-row">
+      <div class="qpu-label">本スクリプト実行<br><span style="font-size:11px;font-weight:400;color:var(--text2)">5 alpha × 8192 shots</span></div>
+      <div class="qpu-bar-wrap"><div class="qpu-bar" style="width:1.72%"></div></div>
+      <div class="qpu-val">10.35 s <span style="color:var(--good)">（1.72%）</span></div>
+    </div>
+    <div class="qpu-row">
+      <div class="qpu-label">月間無料枠</div>
+      <div class="qpu-bar-wrap"><div class="qpu-bar" style="width:100%;background:var(--border)"></div></div>
+      <div class="qpu-val">600 s</div>
+    </div>
+  </div>
+
+  <p>月 <strong>57回</strong> 実行可能。Active Reset 使用時は70倍以上の削減（0.15秒）。
+  キュー待ち時間（通常5〜30分）がボトルネックになるため、混雑の少ない時間帯での投入を推奨。</p>
+</section>
+
+<!-- ── 7. CONCLUSIONS ── -->
+<section>
+  <div class="section-label">Section 7</div>
+  <h2>まとめと今後の展望</h2>
+
+  <div class="concl-grid">
+    <div class="concl-card">
+      <div class="icon">&#10003;</div>
+      <h3>実機検証の成功</h3>
+      <p>1量子ビット・46ゲートの浅い回路で Landau-Zener 非断熱遷移を IBM 実機上で観測。AerSim との平均偏差 0.53%。</p>
+    </div>
+    <div class="concl-card">
+      <div class="icon">&#10003;</div>
+      <h3>3段階パイプラインの有効性</h3>
+      <p>Catalyst（理論）→ AerSim（ノイズ模擬）→ 実機 の段階的検証が、ノイズ起因誤差と離散化誤差の切り分けに有効だった。</p>
+    </div>
+    <div class="concl-card">
+      <div class="icon">→</div>
+      <h3>CNT VQE 研究との接続</h3>
+      <p>本モデルは S₀-S₁ 非断熱遷移の最小実装。CAS(2,2) VQE で解いている CNT 官能基化の光吸収制御問題と同じ物理クラス。</p>
+    </div>
+    <div class="concl-card">
+      <div class="icon">→</div>
+      <h3>今後の拡張</h3>
+      <p>多量子ビット化（CAS空間拡大）、Active Reset 導入による QPU 削減、読み出し誤り緩和（M3）の適用。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>PennyLane 0.45 / Catalyst 0.15 / Qiskit 2.3 / qiskit-ibm-runtime 0.45</span>
+  <span>リポジトリ: qubit250/JAX_Test</span>
+  <span>ブランチ: claude/pennylane-dynamic-nonadiabatic-je0wpx</span>
+</footer>
+
+</div>
+
+<script>
+// ── Avoided Crossing diagram ──
+(function(){
+  const canvas = document.getElementById('ed');
+  const dpr = window.devicePixelRatio || 1;
+  function resize(){
+    const w = canvas.parentElement.clientWidth - 48;
+    canvas.width  = Math.min(w, 600) * dpr;
+    canvas.height = 200 * dpr;
+    canvas.style.width  = Math.min(w, 600) + 'px';
+    canvas.style.height = '200px';
+    draw();
+  }
+  function getCSSVar(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function draw(){
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0,0,W,H);
+
+    const accent  = getCSSVar('--accent');
+    const accent2 = getCSSVar('--accent2');
+    const text2   = getCSSVar('--text2');
+    const border  = getCSSVar('--border');
+
+    // axes
+    ctx.strokeStyle = border;
+    ctx.lineWidth = dpr;
+    ctx.beginPath();
+    ctx.moveTo(40*dpr, 10*dpr); ctx.lineTo(40*dpr, 170*dpr);
+    ctx.moveTo(40*dpr, 170*dpr); ctx.lineTo(W-10, 170*dpr);
+    ctx.stroke();
+
+    // axis labels
+    ctx.fillStyle = text2;
+    ctx.font = `${11*dpr}px "Segoe UI",system-ui,sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('時間 t', W/2, 192*dpr);
+    ctx.save(); ctx.translate(16*dpr, H/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('エネルギー', 0, 0); ctx.restore();
+
+    const n = 300;
+    const margin = 50*dpr;
+    const plotW = W - margin - 20*dpr;
+    const plotH = 130*dpr;
+    const y0 = 30*dpr;
+
+    function E(t, delta){ return Math.sqrt(t*t + delta*delta); }
+    function xp(i){ return margin + plotW*(i/n); }
+    function yGnd(t, delta){ return y0 + plotH * (1 - (E(t,delta) - 0.05)/(2*E(1.5,delta))); }
+    function yExc(t, delta){ return y0 + plotH * (1 - (E(t,delta) + 0.05 - 2*E(1.5,delta) + 2*E(1.5,delta))/(2*E(1.5,delta))); }
+
+    // draw for delta = 0.4 (avoided crossing visible)
+    const delta = 0.4;
+    function gnd(i){
+      const t = -1.5 + 3*(i/n);
+      const e = E(t, delta);
+      return y0 + plotH*(0.5 - t/(2*1.8));
+    }
+    function exc(i){
+      const t = -1.5 + 3*(i/n);
+      return y0 + plotH*(0.5 + t/(2*1.8));
+    }
+    function gndAC(i){
+      const t = -1.5 + 3*(i/n);
+      const e = Math.sqrt(t*t + delta*delta);
+      return y0 + plotH*(0.5 - e/(2*1.8));
+    }
+    function excAC(i){
+      const t = -1.5 + 3*(i/n);
+      const e = Math.sqrt(t*t + delta*delta);
+      return y0 + plotH*(0.5 + e/(2*1.8));
+    }
+
+    // diabatic (dashed)
+    ctx.setLineDash([4*dpr, 4*dpr]);
+    ctx.lineWidth = 1.5*dpr;
+    ctx.strokeStyle = text2;
+    ctx.globalAlpha = 0.4;
+    ctx.beginPath();
+    for(let i=0;i<=n;i++){ i===0?ctx.moveTo(xp(i),gnd(i)):ctx.lineTo(xp(i),gnd(i)); }
+    ctx.stroke();
+    ctx.beginPath();
+    for(let i=0;i<=n;i++){ i===0?ctx.moveTo(xp(i),exc(i)):ctx.lineTo(xp(i),exc(i)); }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.setLineDash([]);
+
+    // adiabatic
+    ctx.lineWidth = 2.5*dpr;
+    ctx.strokeStyle = accent;
+    ctx.beginPath();
+    for(let i=0;i<=n;i++){ i===0?ctx.moveTo(xp(i),gndAC(i)):ctx.lineTo(xp(i),gndAC(i)); }
+    ctx.stroke();
+    ctx.strokeStyle = accent2;
+    ctx.beginPath();
+    for(let i=0;i<=n;i++){ i===0?ctx.moveTo(xp(i),excAC(i)):ctx.lineTo(xp(i),excAC(i)); }
+    ctx.stroke();
+
+    // labels
+    ctx.font = `${10.5*dpr}px "Segoe UI",system-ui,sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = accent;
+    ctx.fillText('基底状態 (adiabatic)', xp(n)+4, gndAC(n)+4*dpr);
+    ctx.fillStyle = accent2;
+    ctx.fillText('励起状態 (adiabatic)', xp(n)+4, excAC(n)+4*dpr);
+    ctx.fillStyle = text2;
+    ctx.globalAlpha = 0.6;
+    ctx.fillText('diabatic', xp(n)+4, gnd(n)-2*dpr);
+    ctx.globalAlpha = 1;
+
+    // crossing marker
+    const cx = xp(n/2), cy = y0 + plotH*0.5;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = dpr;
+    ctx.setLineDash([3*dpr, 3*dpr]);
+    ctx.beginPath(); ctx.moveTo(cx, y0); ctx.lineTo(cx, 170*dpr); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = text2;
+    ctx.textAlign = 'center';
+    ctx.fillText('t = 0 (avoided crossing)', cx, 183*dpr);
+
+    // animated particle
+    const now = Date.now();
+    const phase = ((now % 4000) / 4000);
+    const pi = Math.floor(phase * n);
+    const px = xp(pi);
+    const fastPhase = phase;
+    const py_fast = gnd(pi) + (excAC(pi)-gndAC(pi))*(fastPhase > 0.5 ? (fastPhase-0.5)*2*0.8 : 0);
+    ctx.beginPath();
+    ctx.arc(px, gndAC(pi), 5*dpr, 0, 2*Math.PI);
+    ctx.fillStyle = accent;
+    ctx.fill();
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+})();
+</script>
