@@ -273,8 +273,10 @@ def plot_results(mode: str, gamma: float, overlaps: list, p0_list: list, M: int 
 
     plt.tight_layout()
     fname = f"berry_phase_jt_{mode}.png"
-    plt.savefig(f"/home/user/JAX_Test/{fname}", dpi=150, bbox_inches="tight")
-    print(f"\n  プロット保存: {fname}")
+    import os
+    save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), fname)
+    plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    print(f"\n  プロット保存: {save_path}")
 
 
 # ── メイン ──────────────────────────────────────────────────
