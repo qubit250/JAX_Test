@@ -28,6 +28,7 @@ IBM 量子実機で実装・検証した。1-qubit から 2-qubit、CNOT 0 個�
 | 4 | Berry 位相 | H(θ) = R·cos(θ)·ZI + R·sin(θ)·XX | 2 | 2/回路 | **0%** (位相保護) | `pennylane_berry_phase_jt.py` |
 | 5 | Spin-Boson (SB) | (ε/2)ZI + (Δ/2)XI + (ω/2)IZ + g·ZX | 2 | 40 | 1.26% | `pennylane_spin_boson.py` |
 | 6 | Stark-SB | SB + ε_Stark スキャン | 2 | 40 | **0.75%** | `pennylane_stark_sb_quick.py` |
+| 7 | Anderson-Newns (AN) | ε_d n_d + ε_k n_k + V(c†c_k + h.c.) | 2 | 80 | **0.84%** | `pennylane_anderson_newns.py` |
 
 ---
 
@@ -112,6 +113,24 @@ wrap-around (k=7) で P=0.117 < 0.5 → overlap 符号が負 → W < 0 → γ = 
 
 **MAE = 1.26%** (全 5 点) — ⟨ZI⟩ の符号変化 (負 → 正) でコヒーレント-インコヒーレント・クロスオーバーを実証。  
 > **用語注記**: 「局在化」は 1 モード (2 準位フォノン) 切断モデルでの表現。連続浴の標準 Ohmic SB では真の局在化 (KT 転移) は α > 1 に対応し、α = 0.5 はコヒーレント-インコヒーレントのクロスオーバー点 (Toulouse 点) にあたる。
+
+---
+
+### 2.6 Anderson-Newns 共鳴準位モデル (IBM ibm_marrakesh)
+
+**モデル**: H = ε_d n_d + ε_k n_k + V (c†_d c_k + h.c.)  
+**エンコード**: Jordan-Wigner (spinless 2 qubit); 初期状態 |10⟩ (分子占有, 金属空)  
+**パラメータ**: ε_d = −0.5 (分子 LUMO), ε_k = 0.0 (フェルミ準位), T = 4.0
+
+| V | n_d_IBM | n_d_exact | \|誤差\| | 誤差(%) |
+|---|---------|-----------|---------|--------|
+| 0.10 | 0.8789 | 0.8931 | 0.0141 | 1.58% |
+| 0.20 | 0.6304 | 0.6417 | 0.0113 | 1.77% |
+| 0.30 | 0.4066 | 0.4099 | 0.0033 | 0.80% |
+| 0.50 | 0.5033 | 0.5048 | 0.0015 | 0.30% |
+| 0.80 | 0.9484 | 0.9600 | 0.0117 | 1.22% |
+
+**MAE = 0.84%** (5 点平均) — CNOT=80 で SB (1.26%/40 CNOT) を上回る精度。全点で n_d_IBM < n_d_exact: T1 緩和が |1⟩→|0⟩ 方向に作用し電荷占有数を系統的に過小評価。n_d ≈ 0.5 (V=0.50) で誤差最小 (0.30%)。V≈0.30 で n_d が極小→V=0.80 で再増大する**非単調応答**を IBM 実機・厳密解双方で確認 (Stark-SB と同機構)。
 
 ---
 
@@ -210,7 +229,8 @@ NISQ デバイスにおける幾何学的位相測定の有用性を示す。
 | JT 時間発展 | ibm_fez | 40 | 2.0% |
 | Berry 位相 | ibm_fez | 2 | **0%** (位相保護) |
 | Spin-Boson | ibm_marrakesh | 40 | 1.26% |
-| **Stark-SB** | **ibm_marrakesh** | **40** | **0.75%** |
+| Stark-SB | ibm_marrakesh | 40 | **0.75%** |
+| **Anderson-Newns** | **ibm_marrakesh** | **80** | **0.84%** |
 
 ibm_marrakesh が CZ 換算 40 ゲートの回路でも MAE < 1.3% を達成した背景:
 - Heron r2 世代の高い 2 量子ビットゲート忠実度
@@ -270,13 +290,16 @@ pennylane_minimal_jt.py            # JT 時間発展 (2-qubit, 40 CNOT)
 pennylane_berry_phase_jt.py        # JT Berry 位相 Wilson Loop
 pennylane_spin_boson.py            # Spin-Boson コヒーレント-局在化
 pennylane_stark_sb_quick.py        # Stark-SB ε スキャン (最小構成)
+pennylane_anderson_newns.py        # Anderson-Newns 共鳴準位 (2-qubit, 80 CNOT)
 
-jt_ibm_fez_verification_report.md      # JT 実機レポート
-berry_phase_ibm_fez_report.md          # Berry 位相実機レポート
-rosen_zener_ibm_marrakesh_report.md    # RZ 実機レポート
-spin_boson_ibm_marrakesh_report.md     # SB 実機レポート
-stark_sb_ibm_marrakesh_report.md       # Stark-SB 実機レポート
-research_summary.md                    # 本文書
+jt_ibm_fez_verification_report.md          # JT 実機レポート
+berry_phase_ibm_fez_report.md              # Berry 位相実機レポート
+rosen_zener_ibm_marrakesh_report.md        # RZ 実機レポート
+spin_boson_ibm_marrakesh_report.md         # SB 実機レポート
+stark_sb_ibm_marrakesh_report.md           # Stark-SB 実機レポート
+anderson_newns_ibm_marrakesh_report.md     # AN 実機レポート
+anderson_newns_feasibility.md              # AN 実現可能性検討
+research_summary.md                        # 本文書
 ```
 
 ---
