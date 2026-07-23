@@ -54,10 +54,11 @@ def run(mode="simulate", token=None):
         if mode == "simulate":
             dev = qml.device("default.qubit", wires=2)
         elif mode == "ibm_sim":
-            dev = qml.device("default.qubit", wires=2, shots=SHOTS)
+            dev = qml.device("default.qubit", wires=2)
         else:
-            dev = qml.device("qiskit.remote", wires=2, backend=backend, shots=SHOTS)
+            dev = qml.device("qiskit.remote", wires=2, backend=backend)
 
+        @qml.set_shots(SHOTS if mode != "simulate" else None)
         @qml.qnode(dev)
         def circuit():
             qml.PauliX(wires=0)          # 初期状態 |10⟩ (mol occupied)
