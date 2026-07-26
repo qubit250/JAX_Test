@@ -164,7 +164,12 @@ def eval_circuit_3q(dev, eps, g, phi, n_steps, mode="simulate"):
 # ── IBM backend setup ────────────────────────────────────────────────────────
 def get_backend(token, min_qubits=3):
     from qiskit_ibm_runtime import QiskitRuntimeService
-    svc = QiskitRuntimeService(channel="ibm_quantum_platform", token=token)
+    try:
+        svc = QiskitRuntimeService(channel="ibm_quantum_platform", token=token)
+    except Exception:
+        svc = QiskitRuntimeService(
+            channel="ibm_quantum_platform", token=token,
+            instance="open-instance")
     backend = svc.least_busy(operational=True, simulator=False,
                               min_num_qubits=min_qubits)
     print(f"  Backend: {backend.name}")
