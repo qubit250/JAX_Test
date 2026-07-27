@@ -127,7 +127,7 @@ def p_analytic_ch2(eps, g=G_CONST, T=T_FINAL):
 # ── Trotter circuit ──────────────────────────────────────────────────────────
 def make_dev_3q(mode, backend=None, ionq_api_key=None, ionq_target="aria-1"):
     if mode == "ibm_real":
-        return qml.device("qiskit.remote", wires=3, backend=backend)
+        return qml.device("qiskit.remote", wires=3, backend=backend, shots=SHOTS)
     if mode == "ionq":
         return make_dev_ionq(ionq_api_key, wires=3, shots=SHOTS,
                               target=ionq_target)
@@ -150,7 +150,6 @@ def eval_circuit_3q(dev, eps, g, phi, n_steps, mode="simulate"):
     g1 = float(g) * float(np.cos(phi))
     g2 = float(g) * float(np.sin(phi))
 
-    @qml.set_shots(SHOTS if mode != "simulate" else None)
     @qml.qnode(dev)
     def circuit():
         for _ in range(n_steps):
