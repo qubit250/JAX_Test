@@ -48,7 +48,7 @@ try:
         dev2 = qml.device("ionq.simulator", wires=2, shots=SHOTS, api_key=API_KEY)
     else:
         dev2 = qml.device("ionq.qpu", wires=2, shots=SHOTS,
-                           api_key=API_KEY, target=TARGET)
+                           api_key=API_KEY, backend=TARGET)
     print(f"  ✓ 2-qubit デバイス作成成功: {dev2}")
 except Exception as e:
     print(f"  ✗ {e}")
@@ -85,7 +85,7 @@ try:
         dev3 = qml.device("ionq.simulator", wires=3, shots=SHOTS, api_key=API_KEY)
     else:
         dev3 = qml.device("ionq.qpu", wires=3, shots=SHOTS,
-                           api_key=API_KEY, target=TARGET)
+                           api_key=API_KEY, backend=TARGET)
 
     @qml.qnode(dev3)
     def ghz3():
@@ -125,7 +125,7 @@ try:
         dev_t = qml.device("ionq.simulator", wires=3, shots=SHOTS, api_key=API_KEY)
     else:
         dev_t = qml.device("ionq.qpu", wires=3, shots=SHOTS,
-                            api_key=API_KEY, target=TARGET)
+                            api_key=API_KEY, backend=TARGET)
 
     @qml.qnode(dev_t)
     def trotter_1step():

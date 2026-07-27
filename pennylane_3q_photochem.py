@@ -200,7 +200,7 @@ def make_dev_ionq(api_key, wires, shots, target="aria-1"):
         return qml.device("ionq.simulator", wires=wires, shots=shots,
                           api_key=api_key)
     return qml.device("ionq.qpu", wires=wires, shots=shots,
-                       api_key=api_key, target=target)
+                       api_key=api_key, backend=target)
 
 
 # ── ε scan ──────────────────────────────────────────────────────────────────
