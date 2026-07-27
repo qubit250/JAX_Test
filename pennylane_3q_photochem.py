@@ -31,7 +31,18 @@ Trotter 分解 (1 ステップ):
   map2d    : (ε,φ) 2D マップ (シミュレーションのみ)
 
 使い方:
-  python pennylane_3q_photochem.py [simulate|ibm_real] [eps_scan|phi_scan|map2d] [TOKEN]
+  # ローカルシミュレーター
+  python pennylane_3q_photochem.py simulate [eps_scan|phi_scan|map2d]
+
+  # IBM Quantum
+  python pennylane_3q_photochem.py ibm_real [eps_scan|phi_scan] <IBM_TOKEN>
+
+  # IonQ (pip install pennylane-ionq が必要)
+  python pennylane_3q_photochem.py ionq [eps_scan|phi_scan] <IONQ_API_KEY> [aria-1|forte-1|simulator]
+
+IonQ の利点:
+  全結合トポロジー → CNOT ルーティングオーバーヘッドなし
+  高忠実度 (Aria-1: CNOT~99.5%+) → IBM より少ないノイズ
 """
 
 import sys
@@ -114,9 +125,12 @@ def p_analytic_ch2(eps, g=G_CONST, T=T_FINAL):
 
 
 # ── Trotter circuit ──────────────────────────────────────────────────────────
-def make_dev_3q(mode, backend=None):
+def make_dev_3q(mode, backend=None, ionq_api_key=None, ionq_target="aria-1"):
     if mode == "ibm_real":
         return qml.device("qiskit.remote", wires=3, backend=backend)
+    if mode == "ionq":
+        return make_dev_ionq(ionq_api_key, wires=3, shots=SHOTS,
+                              target=ionq_target)
     return qml.device("default.qubit", wires=3)
 
 
@@ -176,15 +190,37 @@ def get_backend(token, min_qubits=3):
     return backend
 
 
+# ── IonQ device setup ─────────────────────────────────────────────────────────
+def make_dev_ionq(api_key, wires, shots, target="aria-1"):
+    """
+    IonQ デバイス作成 (pennylane-ionq プラグイン使用)。
+    target: "simulator" (無料テスト) | "aria-1" | "forte-1"
+    全結合トポロジー → CNOT ルーティングなし、高忠実度 CNOT
+    """
+    if target == "simulator":
+        return qml.device("ionq.simulator", wires=wires, shots=shots,
+                          api_key=api_key)
+    return qml.device("ionq.qpu", wires=wires, shots=shots,
+                       api_key=api_key, target=target)
+
+
 # ── ε scan ──────────────────────────────────────────────────────────────────
-def run_eps_scan(mode="simulate", token=None):
+def run_eps_scan(mode="simulate", token=None, ionq_target="aria-1"):
     """
     ε scan showing dual CI topology.
-    Simulation: phi={0, pi/4, pi/2}  IBM: phi=pi/4 only (shows both peaks).
+    Simulation: phi={0, pi/4, pi/2}
+    IBM / IonQ: phi=pi/4 only (9 circuits × 40 CNOT each)
     """
-    n_steps  = N_STEPS_IBM if mode == "ibm_real" else N_STEPS_SIM
-    eps_vals = EPS_IBM     if mode == "ibm_real" else EPS_SIM
-    backend  = get_backend(token) if mode == "ibm_real" else None
+    is_real  = mode in ("ibm_real", "ionq")
+    n_steps  = N_STEPS_IBM if is_real else N_STEPS_SIM
+    eps_vals = EPS_IBM     if is_real else EPS_SIM
+    backend  = None
+    api_key  = token if mode == "ionq" else None
+
+    if mode == "ibm_real":
+        backend = get_backend(token)
+    elif mode == "ionq":
+        print(f"  IonQ target: {ionq_target}")
 
     print(f"\n{'='*72}")
     print(f"  3-qubit Photochem — ε scan (Dual CI Topology)")
@@ -194,7 +230,7 @@ def run_eps_scan(mode="simulate", token=None):
     print(f"  N_steps={n_steps}, CNOT={4*n_steps}/circuit, mode={mode}")
     print(f"{'='*72}")
 
-    phi_set = [np.pi/4] if mode == "ibm_real" else PHI_SHOW
+    phi_set = [np.pi/4] if is_real else PHI_SHOW
     results = {}
 
     for phi in phi_set:
@@ -206,7 +242,8 @@ def run_eps_scan(mode="simulate", token=None):
 
         phi_results = {}
         for eps in eps_vals:
-            dev  = make_dev_3q(mode, backend)
+            dev  = make_dev_3q(mode, backend,
+                               ionq_api_key=api_key, ionq_target=ionq_target)
             r    = eval_circuit_3q(dev, float(eps), G_CONST, phi, n_steps, mode)
             ex   = p_exact_3q(float(eps), G_CONST, phi)
             err1 = abs(r['P110'] - ex['P110']) / max(ex['P110'], 1e-4) * 100
@@ -233,11 +270,18 @@ def run_eps_scan(mode="simulate", token=None):
 
 
 # ── φ scan ──────────────────────────────────────────────────────────────────
-def run_phi_scan(mode="simulate", token=None):
+def run_phi_scan(mode="simulate", token=None, ionq_target="aria-1"):
     """Duschinsky angle scan — branching ratio at CI₁ and CI₂."""
-    n_steps  = N_STEPS_IBM if mode == "ibm_real" else N_STEPS_SIM
-    phi_vals = PHI_IBM     if mode == "ibm_real" else PHI_SIM
-    backend  = get_backend(token) if mode == "ibm_real" else None
+    is_real  = mode in ("ibm_real", "ionq")
+    n_steps  = N_STEPS_IBM if is_real else N_STEPS_SIM
+    phi_vals = PHI_IBM     if is_real else PHI_SIM
+    backend  = None
+    api_key  = token if mode == "ionq" else None
+
+    if mode == "ibm_real":
+        backend = get_backend(token)
+    elif mode == "ionq":
+        print(f"  IonQ target: {ionq_target}")
 
     print(f"\n{'='*72}")
     print(f"  3-qubit Photochem — Duschinsky φ scan")
@@ -254,7 +298,8 @@ def run_phi_scan(mode="simulate", token=None):
 
         eps_results = {}
         for phi in phi_vals:
-            dev   = make_dev_3q(mode, backend)
+            dev   = make_dev_3q(mode, backend,
+                                ionq_api_key=api_key, ionq_target=ionq_target)
             r     = eval_circuit_3q(dev, float(eps), G_CONST, phi, n_steps, mode)
             ex    = p_exact_3q(float(eps), G_CONST, phi)
             total = r['P110'] + r['P011']
@@ -479,24 +524,28 @@ def plot_map2d(eps_grid, phi_grid, P110, P011, P_sum, eta):
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    mode     = sys.argv[1] if len(sys.argv) > 1 else "simulate"
-    scan_typ = sys.argv[2] if len(sys.argv) > 2 else "eps_scan"
-    token    = sys.argv[3] if len(sys.argv) > 3 else None
+    mode         = sys.argv[1] if len(sys.argv) > 1 else "simulate"
+    scan_typ     = sys.argv[2] if len(sys.argv) > 2 else "eps_scan"
+    token        = sys.argv[3] if len(sys.argv) > 3 else None
+    ionq_target  = sys.argv[4] if len(sys.argv) > 4 else "aria-1"
 
     if mode == "ibm_real" and token is None:
-        print("ERROR: TOKEN required for ibm_real mode", file=sys.stderr)
+        print("ERROR: IBM TOKEN required for ibm_real mode", file=sys.stderr)
+        sys.exit(1)
+    if mode == "ionq" and token is None:
+        print("ERROR: IONQ_API_KEY required for ionq mode", file=sys.stderr)
         sys.exit(1)
 
     if scan_typ == "eps_scan":
-        r = run_eps_scan(mode, token)
+        r = run_eps_scan(mode, token, ionq_target=ionq_target)
         plot_eps_scan(r, mode)
 
     elif scan_typ == "phi_scan":
-        r = run_phi_scan(mode, token)
+        r = run_phi_scan(mode, token, ionq_target=ionq_target)
         plot_phi_scan(r, mode)
 
     elif scan_typ == "map2d":
-        if mode == "ibm_real":
+        if mode in ("ibm_real", "ionq"):
             print("  map2d is simulation-only; switching to simulate")
             mode = "simulate"
         data = run_map2d()
