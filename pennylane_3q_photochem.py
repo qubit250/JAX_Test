@@ -40,6 +40,12 @@ Trotter 分解 (1 ステップ):
   # IonQ (pip install pennylane-ionq が必要)
   python pennylane_3q_photochem.py ionq [eps_scan|phi_scan] <IONQ_API_KEY> [aria-1|forte-1|simulator]
 
+  # Azure Quantum (pip install azure-quantum[qiskit] pennylane-qiskit が必要)
+  python pennylane_3q_photochem.py azure [eps_scan|phi_scan] <RESOURCE_ID> <LOCATION> [<BACKEND>]
+    RESOURCE_ID: /subscriptions/.../resourceGroups/.../providers/Microsoft.Quantum/Workspaces/...
+    LOCATION:    eastus, westeurope など
+    BACKEND:     ionq.simulator (default) | ionq.qpu.aria-1 | quantinuum.sim.h1-1sc | quantinuum.qpu.h1-1
+
 IonQ の利点:
   全結合トポロジー → CNOT ルーティングオーバーヘッドなし
   高忠実度 (Aria-1: CNOT~99.5%+) → IBM より少ないノイズ
@@ -125,12 +131,16 @@ def p_analytic_ch2(eps, g=G_CONST, T=T_FINAL):
 
 
 # ── Trotter circuit ──────────────────────────────────────────────────────────
-def make_dev_3q(mode, backend=None, ionq_api_key=None, ionq_target="aria-1"):
+def make_dev_3q(mode, backend=None, ionq_api_key=None, ionq_target="aria-1",
+                azure_resource_id=None, azure_location="eastus",
+                azure_backend="ionq.simulator"):
     if mode == "ibm_real":
         return qml.device("qiskit.remote", wires=3, backend=backend, shots=SHOTS)
     if mode == "ionq":
         return make_dev_ionq(ionq_api_key, wires=3, shots=SHOTS,
                               target=ionq_target)
+    if mode == "azure":
+        return make_dev_azure(azure_resource_id, azure_location, azure_backend)
     return qml.device("default.qubit", wires=3)
 
 
@@ -203,14 +213,36 @@ def make_dev_ionq(api_key, wires, shots, target="aria-1"):
                        api_key=api_key, backend=target)
 
 
+# ── Azure Quantum device setup ────────────────────────────────────────────────
+def make_dev_azure(resource_id, location, backend_name="ionq.simulator"):
+    """
+    Azure Quantum デバイス作成 (qiskit.remote 経由)。
+    backend_name:
+      ionq.simulator          (無料テスト)
+      ionq.qpu.aria-1         (IonQ Aria-1 実機)
+      quantinuum.sim.h1-1sc   (Quantinuum 構文チェッカー, 無料)
+      quantinuum.sim.h1-1e    (Quantinuum エミュレーター)
+      quantinuum.qpu.h1-1     (Quantinuum H1-1 実機, 高忠実度)
+    """
+    from azure.quantum import Workspace
+    from azure.quantum.qiskit import AzureQuantumProvider
+
+    workspace = Workspace(resource_id=resource_id, location=location)
+    provider  = AzureQuantumProvider(workspace)
+    backend   = provider.get_backend(backend_name)
+    print(f"  Azure Quantum backend: {backend_name}")
+    return qml.device("qiskit.remote", wires=3, backend=backend, shots=SHOTS)
+
+
 # ── ε scan ──────────────────────────────────────────────────────────────────
-def run_eps_scan(mode="simulate", token=None, ionq_target="aria-1"):
+def run_eps_scan(mode="simulate", token=None, ionq_target="aria-1",
+                 azure_location="eastus", azure_backend="ionq.simulator"):
     """
     ε scan showing dual CI topology.
     Simulation: phi={0, pi/4, pi/2}
     IBM / IonQ: phi=pi/4 only (9 circuits × 40 CNOT each)
     """
-    is_real  = mode in ("ibm_real", "ionq")
+    is_real  = mode in ("ibm_real", "ionq", "azure")
     n_steps  = N_STEPS_IBM if is_real else N_STEPS_SIM
     eps_vals = EPS_IBM     if is_real else EPS_SIM
     backend  = None
@@ -220,6 +252,8 @@ def run_eps_scan(mode="simulate", token=None, ionq_target="aria-1"):
         backend = get_backend(token)
     elif mode == "ionq":
         print(f"  IonQ target: {ionq_target}")
+    elif mode == "azure":
+        print(f"  Azure Quantum: location={azure_location}, backend={azure_backend}")
 
     print(f"\n{'='*72}")
     print(f"  3-qubit Photochem — ε scan (Dual CI Topology)")
@@ -242,7 +276,10 @@ def run_eps_scan(mode="simulate", token=None, ionq_target="aria-1"):
         phi_results = {}
         for eps in eps_vals:
             dev  = make_dev_3q(mode, backend,
-                               ionq_api_key=api_key, ionq_target=ionq_target)
+                               ionq_api_key=api_key, ionq_target=ionq_target,
+                               azure_resource_id=token if mode == "azure" else None,
+                               azure_location=azure_location,
+                               azure_backend=azure_backend)
             r    = eval_circuit_3q(dev, float(eps), G_CONST, phi, n_steps, mode)
             ex   = p_exact_3q(float(eps), G_CONST, phi)
             err1 = abs(r['P110'] - ex['P110']) / max(ex['P110'], 1e-4) * 100
@@ -269,9 +306,10 @@ def run_eps_scan(mode="simulate", token=None, ionq_target="aria-1"):
 
 
 # ── φ scan ──────────────────────────────────────────────────────────────────
-def run_phi_scan(mode="simulate", token=None, ionq_target="aria-1"):
+def run_phi_scan(mode="simulate", token=None, ionq_target="aria-1",
+                 azure_location="eastus", azure_backend="ionq.simulator"):
     """Duschinsky angle scan — branching ratio at CI₁ and CI₂."""
-    is_real  = mode in ("ibm_real", "ionq")
+    is_real  = mode in ("ibm_real", "ionq", "azure")
     n_steps  = N_STEPS_IBM if is_real else N_STEPS_SIM
     phi_vals = PHI_IBM     if is_real else PHI_SIM
     backend  = None
@@ -281,6 +319,8 @@ def run_phi_scan(mode="simulate", token=None, ionq_target="aria-1"):
         backend = get_backend(token)
     elif mode == "ionq":
         print(f"  IonQ target: {ionq_target}")
+    elif mode == "azure":
+        print(f"  Azure Quantum: location={azure_location}, backend={azure_backend}")
 
     print(f"\n{'='*72}")
     print(f"  3-qubit Photochem — Duschinsky φ scan")
@@ -298,7 +338,10 @@ def run_phi_scan(mode="simulate", token=None, ionq_target="aria-1"):
         eps_results = {}
         for phi in phi_vals:
             dev   = make_dev_3q(mode, backend,
-                                ionq_api_key=api_key, ionq_target=ionq_target)
+                                ionq_api_key=api_key, ionq_target=ionq_target,
+                                azure_resource_id=token if mode == "azure" else None,
+                                azure_location=azure_location,
+                                azure_backend=azure_backend)
             r     = eval_circuit_3q(dev, float(eps), G_CONST, phi, n_steps, mode)
             ex    = p_exact_3q(float(eps), G_CONST, phi)
             total = r['P110'] + r['P011']
@@ -523,10 +566,15 @@ def plot_map2d(eps_grid, phi_grid, P110, P011, P_sum, eta):
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    mode         = sys.argv[1] if len(sys.argv) > 1 else "simulate"
-    scan_typ     = sys.argv[2] if len(sys.argv) > 2 else "eps_scan"
-    token        = sys.argv[3] if len(sys.argv) > 3 else None
-    ionq_target  = sys.argv[4] if len(sys.argv) > 4 else "aria-1"
+    mode          = sys.argv[1] if len(sys.argv) > 1 else "simulate"
+    scan_typ      = sys.argv[2] if len(sys.argv) > 2 else "eps_scan"
+    token         = sys.argv[3] if len(sys.argv) > 3 else None
+    arg4          = sys.argv[4] if len(sys.argv) > 4 else None
+    arg5          = sys.argv[5] if len(sys.argv) > 5 else None
+
+    ionq_target   = arg4 if mode == "ionq"  else "aria-1"
+    azure_location = arg4 if mode == "azure" else "eastus"
+    azure_backend  = arg5 if mode == "azure" else "ionq.simulator"
 
     if mode == "ibm_real" and token is None:
         print("ERROR: IBM TOKEN required for ibm_real mode", file=sys.stderr)
@@ -534,17 +582,24 @@ if __name__ == "__main__":
     if mode == "ionq" and token is None:
         print("ERROR: IONQ_API_KEY required for ionq mode", file=sys.stderr)
         sys.exit(1)
+    if mode == "azure" and token is None:
+        print("ERROR: AZURE_RESOURCE_ID required for azure mode", file=sys.stderr)
+        print("  usage: python pennylane_3q_photochem.py azure <scan> <RESOURCE_ID> <LOCATION> [<BACKEND>]",
+              file=sys.stderr)
+        sys.exit(1)
 
     if scan_typ == "eps_scan":
-        r = run_eps_scan(mode, token, ionq_target=ionq_target)
+        r = run_eps_scan(mode, token, ionq_target=ionq_target,
+                         azure_location=azure_location, azure_backend=azure_backend)
         plot_eps_scan(r, mode)
 
     elif scan_typ == "phi_scan":
-        r = run_phi_scan(mode, token, ionq_target=ionq_target)
+        r = run_phi_scan(mode, token, ionq_target=ionq_target,
+                         azure_location=azure_location, azure_backend=azure_backend)
         plot_phi_scan(r, mode)
 
     elif scan_typ == "map2d":
-        if mode in ("ibm_real", "ionq"):
+        if mode in ("ibm_real", "ionq", "azure"):
             print("  map2d is simulation-only; switching to simulate")
             mode = "simulate"
         data = run_map2d()
